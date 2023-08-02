@@ -1,7 +1,7 @@
 extends TextureRect
 signal finished
 
-export(String,FILE) var videoPath = "res://videos/big_buck_bunny.mp4"
+var videoPath
 export var spatialAudio = false
 export var spatialAttenuation = 1
 var image
@@ -58,8 +58,10 @@ var waitTicks : int = 8
 
 var seeked = false
 
+var pid
+
 func _ready():
-	
+	start_preview()
 	if spatialAudio:
 		makeAudioSpatial()
 	
@@ -70,14 +72,28 @@ func _ready():
 	print($Node.getVersion())
 	print($Node.getLicense())
 	
+	yield(get_tree(), "idle_frame")
 	if videoPath != "":
 		if autoPlay:
 			isPlaying = autoPlay
 			loadVideo(videoPath)
-	
-	
-	
-	
+
+func start_preview():
+	pid = OS.execute("C:\\Users\\Admin\\Documents\\GitHub\\Draw\\ffmpeg\\bin\\ffmpeg", ["-y", "-f", "gdigrab", "-framerate", "30", "-i", "desktop", "-f", "fifo", "-attempt_recovery", "1", "-recovery_wait_time" , "1", "-f", "segment", "-segment_time", "300", "-segment_wrap", "1", "preview%d.flv"], false)
+	if !OS.is_process_running(pid) or pid == null:
+		printerr("Failed to start preview")
+	videoPath = "C:\\Users\\Admin\\Documents\\GitHub\\Draw\\preview0.flv"
+
+func _notification(what):
+	if what == NOTIFICATION_WM_QUIT_REQUEST:
+		if pid != null:
+			OS.kill(pid)
+			pid = null
+		var dir = Directory.new()
+		while dir.remove("preview0.flv") != OK:
+			loadVideo("")
+			yield(get_tree(), "idle_frame")
+		get_tree().quit()
 
 func makeAudioSpatial():
 	yield(get_tree().root, "ready")
@@ -100,7 +116,7 @@ func makeAudioSpatial():
 	newPar.add_child(self)
 	newPar.name = name
 	reloadAudioStream()
-	
+
 func loadVideo(path):
 	close()
 	swapBuffer.clear()
@@ -112,7 +128,10 @@ func loadVideo(path):
 	var err = ret["error"]
 	
 	if err < 0:
-		print("Error opening video file:" + path)
+		if pid == null:
+			print("Unloading stream")
+			return
+		printerr("Error opening video file:" + path)
 		return
 	
 	audioRatio = ret["audioRatio"]
