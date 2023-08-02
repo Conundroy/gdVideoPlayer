@@ -79,10 +79,10 @@ func _ready():
 			loadVideo(videoPath)
 
 func start_preview():
-	pid = OS.execute("C:\\Users\\Admin\\Documents\\GitHub\\Draw\\ffmpeg\\bin\\ffmpeg", ["-y", "-f", "gdigrab", "-framerate", "30", "-i", "desktop", "-f", "fifo", "-attempt_recovery", "1", "-recovery_wait_time" , "1", "-f", "segment", "-segment_time", "300", "-segment_wrap", "1", "preview%d.flv"], false)
+	pid = OS.execute("C:\\Users\\Admin\\Documents\\GitHub\\Draw\\ffmpeg\\bin\\ffmpeg", ["-y", "-f", "gdigrab", "-framerate", "30", "-i", "desktop", "-f", "fifo", "-attempt_recovery", "1", "-recovery_wait_time" , "1", "-f", "segment", "-segment_time", "30", "-segment_wrap", "1", str(OS.get_user_data_dir(), "/preview%d.flv")], false)
 	if !OS.is_process_running(pid) or pid == null:
 		printerr("Failed to start preview")
-	videoPath = "C:\\Users\\Admin\\Documents\\GitHub\\Draw\\preview0.flv"
+	videoPath = str(OS.get_user_data_dir(), "/preview0.flv")
 
 func _notification(what):
 	if what == NOTIFICATION_WM_QUIT_REQUEST:
@@ -90,7 +90,7 @@ func _notification(what):
 			OS.kill(pid)
 			pid = null
 		var dir = Directory.new()
-		while dir.remove("preview0.flv") != OK:
+		while dir.remove(str(OS.get_user_data_dir(), "/preview0.flv")) != OK:
 			loadVideo("")
 			yield(get_tree(), "idle_frame")
 		get_tree().quit()
