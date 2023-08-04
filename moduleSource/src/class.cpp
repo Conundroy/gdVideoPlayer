@@ -7,6 +7,7 @@ using namespace godot;
 void godot::videoClass::_register_methods()
 {
 	register_method("loadFile", &godot::videoClass::loadFile);
+	register_method("loadFromPipe", &godot::videoClass::loadFromPipe);
 	register_method("process", &godot::videoClass::process);
 	register_method("processBufferOnly", &godot::videoClass::processBufferOnly);
 	register_method("getDimensions", &godot::videoClass::getDimensions);
@@ -61,6 +62,104 @@ Dictionary godot::videoClass::loadFile(String path,bool usePool)
 
 	formatCtx = avformat_alloc_context();
 	int ret = avformat_open_input(&formatCtx, path.alloc_c_string(), NULL, NULL);
+
+	if (ret != 0)
+	{
+		printError(ret);
+		dict["error"] = ret;
+		return dict;
+	}
+
+	avformat_find_stream_info(formatCtx, NULL);
+
+	AVCodec* codec = nullptr;
+	AVCodecParameters* codecParams = nullptr;
+	const AVCodec* curCodec;
+	
+	durationSec = formatCtx->duration / 1000000.0;
+	
+
+	for (int i = 0; i < formatCtx->nb_streams; ++i)
+	{
+		codecParams = formatCtx->streams[i]->codecpar;
+		curCodec = avcodec_find_decoder(codecParams->codec_id);
+
+		if (!curCodec)
+		{
+			continue;
+		}
+
+		if (curCodec->type == AVMEDIA_TYPE_VIDEO)
+		{
+			videoStream = StreamInfo(i, curCodec, codecParams);
+			videoStream.firstDts = formatCtx->streams[i]->start_time;
+			AVRational timeBase = formatCtx->streams[i]->time_base;
+			numVideoFrames = formatCtx->streams[i]->nb_frames;
+
+			if (videoStream.firstDts == AV_NOPTS_VALUE)
+			{
+				videoStream.firstDts = 0;
+			}
+
+			ratio = (double)timeBase.num / (double)timeBase.den;
+			num = timeBase.num;
+			den = timeBase.den;
+			width = codecParams->width;
+			height = codecParams->height;
+			
+			if (width < 16) width = 16;
+			if (height < 16) height = 16;
+
+			videoFrameSize = av_image_get_buffer_size(videoStream.codecCtx->pix_fmt, width, height, 32);
+			imagePool = new SimplePool(Vector2(width, height));
+			hasVideo = true;
+
+
+		}
+
+		if (curCodec->type == AVMEDIA_TYPE_AUDIO)
+		{
+			AVRational timeBase = formatCtx->streams[i]->time_base;
+			audioRatio = (double)timeBase.num / (double)timeBase.den;
+			audioStream = StreamInfo(i, curCodec, codecParams);
+			audioStream.firstDts = formatCtx->streams[i]->start_time;
+
+			if (audioStream.firstDts == AV_NOPTS_VALUE)
+				audioStream.firstDts = 0;
+
+			sampleRate = audioStream.codecCtx->sample_rate;
+			channels = audioStream.codecCtx->channels;
+
+			hasAudio = true;
+		}
+
+
+		if (durationSec < 0)
+		{
+			validDuration = false;
+		}
+
+	}
+
+	//avcodec_parameters_free(&codecParams);
+
+	dict["hasAudio"] = hasAudio;
+	dict["hasVideo"] = hasVideo;
+	dict["videoRatio"] = ratio;
+	dict["audioRatio"] = ratio;
+	dict["error"] = ret;
+	initialized = true;
+	return dict;
+}
+
+Dictionary godot::videoClass::loadFromPipe(String pipeId,bool usePool)
+{
+	
+	this->usePool = usePool;
+	Dictionary dict;
+
+	formatCtx = avformat_alloc_context();
+	int ret = avformat_open_input(&formatCtx, ("pipe:"+pipeId).alloc_c_string(), NULL, NULL);
 
 	if (ret != 0)
 	{

@@ -73,6 +73,7 @@ class videoClass : public Node
 		~videoClass();
 
 		Dictionary loadFile(String path,bool useBuffer = false);
+		Dictionary loadFromPipe(String pipeId,bool useBuffer = false);
 		
 		static void _register_methods();
 		void _init();
